@@ -733,7 +733,7 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
 
         createSummaryJson(workspace, reportPathWs, allure3);
 
-        workspace.act(new AllureReportArchive(reportDirPath, REPORT_ARCHIVE_NAME));
+        final List<String> separateFiles = workspace.act(new AllureReportArchive(reportDirPath, REPORT_ARCHIVE_NAME));
 
         final FilePath archiveDir = new FilePath(run.getRootDir()).child(ARCHIVE_DIR);
         final FilePath existingArchivedZip = archiveDir.child(REPORT_ARCHIVE_NAME);
@@ -752,6 +752,7 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         if (workspace.child(SUMMARY_ARTIFACT_NAME).exists()) {
             artifacts.put(SUMMARY_ARTIFACT_NAME, SUMMARY_ARTIFACT_NAME);
         }
+        addSeparateFiles(artifacts, reportDirPath, separateFiles, listener);
 
         if (ReportStorage.LOCAL_ON_CONTROLLER.equals(getDescriptor().getReportStorage())) {
             storeAllureArtifactLocally(workspace, archiveDir, artifacts, listener);
@@ -768,6 +769,38 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         if (summaryPath.exists()) {
             summaryPath.delete();
         }
+    }
+
+    /**
+     * Large files stay out of the zip and are archived next to it under their zip entry path;
+     * the archive sources serve an entry from there when the zip does not have it.
+     */
+    private static void addSeparateFiles(final Map<String, String> artifacts,
+                                         final String reportDirPath,
+                                         final List<String> separateFiles,
+                                         final TaskListener listener) {
+        if (separateFiles.isEmpty()) {
+            return;
+        }
+        final String reportParentInWorkspace = reportParentPath(reportDirPath);
+        for (final String entry : separateFiles) {
+            artifacts.put(entry, reportParentInWorkspace + entry);
+        }
+        listener.getLogger().println("Archiving " + separateFiles.size()
+                + " large report file(s) outside " + REPORT_ARCHIVE_NAME);
+    }
+
+    /**
+     * Workspace-relative path of the report directory's parent, with a trailing slash, or empty when
+     * the report directory sits at the workspace root. Zip entry paths are relative to that parent.
+     */
+    static String reportParentPath(final String reportDirPath) {
+        String path = reportDirPath.replace('\\', '/');
+        while (path.endsWith(SLASH)) {
+            path = path.substring(0, path.length() - 1);
+        }
+        final int slash = path.lastIndexOf('/');
+        return slash < 0 ? "" : path.substring(0, slash + 1);
     }
 
     private void storeAllureArtifactLocally(final FilePath workspace,

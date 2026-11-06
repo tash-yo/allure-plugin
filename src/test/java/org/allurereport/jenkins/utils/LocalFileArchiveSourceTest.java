@@ -214,4 +214,30 @@ public class LocalFileArchiveSourceTest {
         }
         source.close();
     }
+
+    @Test
+    public void openEntryFallsBackToFileStoredNextToZip() throws Exception {
+        final File zipFile = createZipFile(INDEX_HTML, INDEX_CONTENT);
+        final String sidecarEntry = "allure-report/data/attachments/trace.zip";
+        final String sidecarContent = "trace";
+        final File sidecar = new File(zipFile.getParentFile(), sidecarEntry);
+        assertThat(sidecar.getParentFile().mkdirs()).isTrue();
+        java.nio.file.Files.write(sidecar.toPath(), sidecarContent.getBytes(StandardCharsets.UTF_8));
+
+        try (LocalFileArchiveSource source = new LocalFileArchiveSource(new FilePath(zipFile));
+             InputStream entryStream = source.openEntry(sidecarEntry)) {
+            assertThat(new String(entryStream.readAllBytes(), StandardCharsets.UTF_8)).isEqualTo(sidecarContent);
+        }
+    }
+
+    @Test
+    public void openEntryDoesNotFollowParentSegmentsOutOfArchiveDirectory() throws Exception {
+        final File zipFile = createZipFile(INDEX_HTML, INDEX_CONTENT);
+        // Resolves to the zip itself, an existing regular file, so only the ".." guard rejects it.
+        final String escaping = "allure-report/../" + zipFile.getName();
+
+        try (LocalFileArchiveSource source = new LocalFileArchiveSource(new FilePath(zipFile))) {
+            assertThatThrownBy(() -> source.openEntry(escaping)).isInstanceOf(NoSuchElementException.class);
+        }
+    }
 }

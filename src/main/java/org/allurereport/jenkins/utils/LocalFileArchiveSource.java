@@ -54,10 +54,33 @@ public final class LocalFileArchiveSource implements AllureReportArchiveSource {
     public InputStream openEntry(final String entryPath) throws IOException {
         final ZipFile zip = getOrOpenZip();
         final ZipEntry entry = zip.getEntry(entryPath);
-        if (entry == null) {
-            throw new NoSuchElementException("Entry not found in archive: " + entryPath);
+        if (entry != null) {
+            return zip.getInputStream(entry);
         }
-        return zip.getInputStream(entry);
+        // Files too large for the zip are stored next to it under their entry path.
+        final FilePath separate = separateFile(entryPath);
+        try {
+            if (separate != null && separate.exists() && !separate.isDirectory()) {
+                return separate.read();
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while reading " + entryPath, interrupted);
+        }
+        throw new NoSuchElementException("Entry not found in archive: " + entryPath);
+    }
+
+    private FilePath separateFile(final String entryPath) {
+        final FilePath parent = archivePath.getParent();
+        if (parent == null || entryPath.isEmpty() || entryPath.charAt(0) == '/' || entryPath.contains("\\")) {
+            return null;
+        }
+        for (final String segment : entryPath.split("/")) {
+            if ("..".equals(segment)) {
+                return null;
+            }
+        }
+        return parent.child(entryPath);
     }
 
     @Override
