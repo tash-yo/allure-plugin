@@ -15,6 +15,7 @@
  */
 package org.allurereport.jenkins.callables;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.FilePath;
 import hudson.remoting.VirtualChannel;
 import hudson.util.DirScanner;
@@ -102,6 +103,9 @@ public class AllureReportArchive extends MasterToSlaveFileCallable<ArrayList<Str
      * Scans like {@link DirScanner.Glob} but diverts files above the threshold into a list instead of
      * the archive.
      */
+    @SuppressFBWarnings(
+            value = "SE_TRANSIENT_FIELD_NOT_RESTORED",
+            justification = "Only used inside invoke() on the agent; never serialized.")
     private static final class SplittingScanner extends DirScanner {
 
         private static final long serialVersionUID = 1L;
